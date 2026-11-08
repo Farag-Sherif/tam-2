@@ -17,19 +17,25 @@ export function SectionHead({
   return (
     <div className={centered ? "text-center" : ""}>
       <Reveal>
-        <div className={`flex items-center gap-4 ${centered ? "justify-center" : ""}`}>
-          <span className="font-display text-[10px] tracking-[0.3em] text-white/40">{index}</span>
-          <span className="h-px w-9 bg-lime/70" />
-          <span className="kicker text-white/55">{kicker}</span>
+        <div className={`flex items-center gap-3.5 ${centered ? "justify-center" : ""}`}>
+          {index && (
+            <span className="font-display text-[11px] font-bold tracking-[0.25em] text-lime">
+              {index}
+            </span>
+          )}
+          {index && <span className="h-px w-8 bg-lime/60" />}
+          <span className="kicker text-white/60 font-semibold">{kicker}</span>
         </div>
       </Reveal>
       <Reveal delay={0.07}>
-        <h2 className="h-title mt-5 text-white">{title}</h2>
+        <h2 className="h-title mt-4 text-white text-[28px] md:text-[36px]">{title}</h2>
       </Reveal>
       {lead ? (
         <Reveal delay={0.14}>
           <p
-            className={`body-copy mt-5 max-w-[54ch] text-white/55 ${centered ? "mx-auto" : ""}`}
+            className={`body-copy mt-3 max-w-[54ch] text-white/60 text-[14.5px] md:text-[15.5px] leading-relaxed ${
+              centered ? "mx-auto" : ""
+            }`}
           >
             {lead}
           </p>

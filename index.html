@@ -1,20 +1,32 @@
 <!doctype html>
-<html lang="en" dir="ltr">
+<html lang="ar" dir="rtl">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TAM — Booths &amp; more | Exhibition Booth Design &amp; Build</title>
+    <title>TAM — بروفايل الشركة | Exhibition Booths & Display Solutions</title>
     <meta
       name="description"
-      content="TAM — Booths & more. Exhibition booth design and build: concept, in-house fabrication, installation, dismantling and storage — one accountable partner for the whole journey."
+      content="TAM — Booths & More. تصميم وتصنيع أجنحة المعارض واستندات العرض: من الورشة حتى التركيب والفك والتخزين."
     />
     <meta name="theme-color" content="#0F1103" />
     <link rel="icon" type="image/png" href="/brand/favicon.png" />
     <link rel="preload" href="/fonts/Syncopate-Bold.ttf" as="font" type="font/ttf" crossorigin />
     <link rel="preload" href="/fonts/IBMPlexSansArabic-Bold.ttf" as="font" type="font/ttf" crossorigin />
-    <meta property="og:title" content="TAM — Booths & more" />
-    <meta property="og:description" content="Designed with Purpose. Built to Stand Out." />
+    <meta property="og:title" content="TAM — Booths & More" />
+    <meta property="og:description" content="Built to Stand Out · صُمّم ليبرز" />
     <meta property="og:image" content="/media/poster-booth.jpg" />
+    <script>
+      // Apply saved language before React mounts (prevents English flash on reload)
+      (function () {
+        var l = "ar";
+        try {
+          var saved = localStorage.getItem("tam_lang");
+          if (saved === "ar" || saved === "en") l = saved;
+        } catch (e) {}
+        document.documentElement.lang = l;
+        document.documentElement.dir = l === "ar" ? "rtl" : "ltr";
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useLang } from "../i18n/LangContext";
 import { submitBrief, RateLimitError } from "../api/client";
+import { validatePhone } from "../lib/phone";
 
 const BRAND_PALETTE = [
   { name: "Blue", hex: "#2563EB" },
@@ -69,7 +70,9 @@ export function BoothConfigModal({
   const [boothType, setBoothType] = useState<"inline" | "corner" | "peninsula" | "island">("island");
 
   // Step 3: Style & Industry
-  const [selectedStyles, setSelectedStyles] = useState<string[]>(["Modern", "Technology"]);
+  const [selectedStyles, setSelectedStyles] = useState<string[]>(() =>
+    lang === "ar" ? ["عصري", "تقني"] : ["Modern", "Tech"]
+  );
   const [selectedColors, setSelectedColors] = useState<string[]>(["#2563EB", "#DFFF00"]);
   const [industry, setIndustry] = useState("");
   const [logoFileName, setLogoFileName] = useState("");
@@ -92,17 +95,45 @@ export function BoothConfigModal({
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
+    // Remember what had focus, then focus the close button (focus-in)
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    window.setTimeout(() => {
+      document.getElementById("configurator-close")?.focus();
+    }, 0);
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        e.preventDefault();
         onClose();
+        return;
+      }
+      // Focus trap: keep Tab cycling inside the dialog panel
+      if (e.key === "Tab") {
+        const panel = document.getElementById("booth-configurator-panel");
+        if (!panel) return;
+        const focusables = panel.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), textarea:not([tabindex="-1"]), input:not([tabindex="-1"]), select, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown, true);
 
     return () => {
       document.body.style.overflow = originalOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keydown", handleKeyDown, true);
+      // Focus return to the element that opened the dialog
+      previouslyFocused?.focus?.();
     };
   }, [isOpen, onClose]);
 
@@ -114,7 +145,8 @@ export function BoothConfigModal({
   const isStep2Valid = Boolean(boothType);
   const isStep3Valid = selectedStyles.length > 0 && industry.trim().length > 0 && selectedColors.length > 0;
   const isStep4Valid = selectedFeatures.length > 0;
-  const isStep5Valid = name.trim().length >= 2 && phone.trim().length >= 5 && budget >= 1000;
+  const phoneCheck = validatePhone(phone);
+  const isStep5Valid = name.trim().length >= 2 && phoneCheck.valid && budget >= 1000;
 
   // Strict step accessibility gate
   const canAccessStep = (targetStep: number): boolean => {
@@ -214,7 +246,7 @@ export function BoothConfigModal({
     try {
       const res = await submitBrief({
         name,
-        contact: phone,
+        contact: phoneCheck.e164 || phone.trim(),
         details:
           notes ||
           `${width}x${depth}m (${height}m H) ${boothType.toUpperCase()} stand — ${industry || "Exhibition"}`,
@@ -289,9 +321,11 @@ export function BoothConfigModal({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.94, y: 15 }}
         transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+        id="booth-configurator-panel"
         className="relative w-full max-w-5xl max-h-[92vh] flex flex-col border border-white/15 bg-[#0A0D08]/95 shadow-[0_25px_70px_rgba(0,0,0,0.9)] backdrop-blur-2xl text-white my-auto overflow-hidden"
         role="dialog"
         aria-modal="true"
+        aria-labelledby="booth-configurator-title"
       >
           {/* Top Radial Ambient Glow */}
           <div
@@ -315,7 +349,7 @@ export function BoothConfigModal({
                     v1.0 · {CURRENT_YEAR}
                   </span>
                 </div>
-                <h2 className="mt-1 text-xl md:text-2xl font-bold text-white font-display">
+                <h2 id="booth-configurator-title" className="mt-1 text-xl md:text-2xl font-bold text-white font-display">
                   {c.configurator.title}
                 </h2>
                 <p className="mt-1 text-xs text-white/60 max-w-2xl line-clamp-1">
@@ -326,6 +360,7 @@ export function BoothConfigModal({
               {/* Close Button */}
               <button
                 type="button"
+                id="configurator-close"
                 onClick={onClose}
                 aria-label={c.contact.closeModal}
                 className="group flex h-9 w-9 shrink-0 items-center justify-center border border-white/15 bg-white/[0.03] text-white/60 transition-all duration-200 hover:border-lime hover:bg-lime hover:text-ink"
@@ -432,7 +467,9 @@ export function BoothConfigModal({
                       </div>
                       <div>
                         <span className="text-white/40">{c.configurator.step5.budgetLabel}:</span>{" "}
-                        <span className="text-lime font-bold">${budget.toLocaleString()} USD</span>
+                        <span className="text-lime font-bold">
+                          ${budget.toLocaleString()} {lang === "ar" ? "دولار" : "USD"}
+                        </span>
                       </div>
                       <div>
                         <span className="text-white/40">{c.configurator.step5.name}:</span>{" "}
@@ -683,7 +720,13 @@ export function BoothConfigModal({
                                   : "border-white/10 text-white/40"
                               }`}
                             >
-                              {isSelected ? "✓ SELECTED" : "SELECT"}
+                              {isSelected
+                                ? lang === "ar"
+                                  ? "✓ تم الاختيار"
+                                  : "✓ SELECTED"
+                                : lang === "ar"
+                                ? "اختيار"
+                                : "SELECT"}
                             </span>
                           </div>
                         </button>
@@ -946,16 +989,24 @@ export function BoothConfigModal({
                           <span>
                             {c.configurator.step5.phone} <span className="text-lime">*</span>
                           </span>
-                          {phone && <span className="text-[10px] text-lime font-mono">✓</span>}
+                          {phone && phoneCheck.valid && <span className="text-[10px] text-lime font-mono">✓</span>}
                         </label>
                         <input
-                          type="text"
+                          type="tel"
+                          inputMode="tel"
+                          autoComplete="tel"
                           required
                           value={phone}
                           onChange={(e) => setPhone(e.target.value)}
                           placeholder={c.configurator.step5.phonePh}
-                          className="mt-2 w-full border-b border-white/20 bg-transparent py-2 text-xs md:text-sm text-white outline-none focus:border-lime placeholder:text-white/25 transition-colors"
+                          aria-invalid={Boolean(phone.trim()) && !phoneCheck.valid}
+                          className="mt-2 w-full border-b bg-transparent py-2 text-xs md:text-sm text-white outline-none transition-colors placeholder:text-white/25 border-white/20 focus:border-lime"
                         />
+                        {phone.trim() && !phoneCheck.valid && (
+                          <span className="mt-1.5 block text-[11px] text-red-300">
+                            {c.configurator.validation.phone}
+                          </span>
+                        )}
                       </div>
                       <div>
                         <label className="kicker text-[11px] text-white/50 block">
@@ -978,7 +1029,10 @@ export function BoothConfigModal({
                           {c.configurator.step5.budgetLabel}
                         </span>
                         <span className="font-display text-lg font-bold text-lime">
-                          ${budget.toLocaleString()} <span className="text-xs font-sans text-white/60">USD</span>
+                          ${budget.toLocaleString()}{" "}
+                          <span className="text-xs font-sans text-white/60">
+                            {lang === "ar" ? "دولار" : "USD"}
+                          </span>
                         </span>
                       </div>
 
@@ -1127,7 +1181,7 @@ export function BoothConfigModal({
                       <div className="text-end">
                         <span className="text-[10.5px] text-white/40 block">{c.configurator.step5.budgetLabel}</span>
                         <span className="font-display text-base font-bold text-lime">
-                          ${budget.toLocaleString()} USD
+                          ${budget.toLocaleString()} {lang === "ar" ? "دولار" : "USD"}
                         </span>
                       </div>
                     </div>
