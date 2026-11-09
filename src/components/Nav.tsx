@@ -22,8 +22,8 @@ export function Nav() {
     ["#journey", c.nav.journey],
     ["#workshop", c.nav.workshop],
     ["#work", c.nav.work],
-    ["#standards", c.nav.standards],
     ["#clients", c.nav.clients],
+    ["#standards", c.nav.standards],
     ["#contact", c.nav.contact],
   ] as const;
 
