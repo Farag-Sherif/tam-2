@@ -99,12 +99,10 @@ export function Nav() {
                   key={href}
                   href={href}
                   onClick={() => setOpen(false)}
-                  className="flex items-baseline justify-between border-b border-white/10 py-3.5 text-[15px] text-white/85 transition-colors hover:text-lime"
+                  className="flex items-center justify-between border-b border-white/10 py-3.5 text-[15px] text-white/85 transition-colors hover:text-lime"
                 >
                   <span className="font-medium">{label}</span>
-                  <span className="font-display text-[9.5px] tracking-[0.2em] text-white/35">
-                    {href.replace("#", "").toUpperCase()}
-                  </span>
+                  <span className="text-white/25 text-[13px]">{dir === "rtl" ? "←" : "→"}</span>
                 </a>
               ))}
             </div>
