@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Loader } from "./components/Loader";
 import { Nav } from "./components/Nav";
 import { Hero } from "./components/Hero";
+import { News } from "./components/News";
 import { About } from "./components/About";
 import { Glance } from "./components/Glance";
 import { Services } from "./components/Services";
@@ -38,6 +39,7 @@ function Site() {
       <Nav />
       <main>
         <Hero />
+        <News />
         <About />
         <Glance />
         <Services />

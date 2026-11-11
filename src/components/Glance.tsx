@@ -1,59 +1,57 @@
 import { Reveal } from "./ui/Reveal";
 import { useLang } from "../i18n/LangContext";
 
-/**
- * TAM AT A GLANCE — profile page 5: 50+ / 5 / 1 / 150+ and the five-stage strip.
- */
 export function Glance() {
-  const { c, dir } = useLang();
-  const glance = c.glance;
+  const { siteData, apiStatus } = useLang();
+  const glance = siteData?.glance;
+  const items = glance?.items ?? [];
+
+  if (apiStatus !== "loading" && !glance) return null;
 
   return (
     <section id="glance" className="relative border-t border-white/10 py-16 md:py-24 bg-ink">
       <div className="mx-auto max-w-[1440px] px-5 md:px-8">
-        <Reveal>
-          <div className="flex items-center gap-3">
-            <span className="h-0.5 w-7 bg-lime/80" />
-            <span className="kicker text-white/60 font-semibold">{glance.kicker}</span>
-          </div>
-        </Reveal>
-
-        {/* 4 numbers — exactly the profile's glance page */}
-        <div className="mt-10 grid grid-cols-2 gap-px bg-white/10 lg:grid-cols-4 border border-white/10">
-          {glance.stats.map((st, i) => (
-            <Reveal key={st.label} delay={i * 0.05}>
-              <div className="h-full bg-ink p-6 md:p-8 transition-colors duration-300 hover:bg-white/[0.03]">
-                <span className="font-display text-3xl md:text-5xl font-bold tracking-tight text-lime">
-                  {st.num}
-                </span>
-                <h3 className="h-sub mt-4 text-white text-[15px] md:text-[17px]">{st.label}</h3>
-              </div>
-            </Reveal>
-          ))}
-        </div>
-
-        {/* Five stages strip — Design · Fabrication · Installation · Dismantling · Storage */}
-        <Reveal delay={0.15}>
-          <div className="mt-10 border border-white/12 bg-white/[0.02] p-4 sm:p-5 md:p-7">
-            <span className="kicker text-[10px] sm:text-[11px] text-lime font-bold tracking-wider">
-              {glance.lifecycleTitle}
-            </span>
-            <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3" dir={dir}>
-              {glance.lifecycle.map((lc) => (
-                <div
-                  key={lc.n}
-                  className="border border-white/10 bg-ink/60 p-3.5 sm:p-4 transition-colors hover:border-lime/40"
-                >
-                  <span className="font-display text-[11px] text-lime font-bold">{lc.n}</span>
-                  <div className="mt-2.5 font-display text-[13px] md:text-[15px] font-bold text-white">
-                    {lc.name}
-                  </div>
-                  <div className="mt-1.5 text-[11px] leading-relaxed text-white/50">{lc.desc}</div>
-                </div>
+        {!glance ? (
+          <div className="animate-pulse space-y-8">
+            <div className="h-5 w-36 bg-white/10 rounded" />
+            <div className="grid gap-5 md:grid-cols-3">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="h-44 border border-white/10 bg-white/[0.02]" />
               ))}
             </div>
           </div>
-        </Reveal>
+        ) : (
+          <>
+            {glance.kicker && (
+              <Reveal>
+                <div className="flex items-center gap-3">
+                  <span className="h-0.5 w-7 bg-lime/80" />
+                  <span className="kicker text-white/60 font-semibold">{glance.kicker}</span>
+                </div>
+              </Reveal>
+            )}
+
+            {items.length > 0 && (
+              <div className="mt-10 grid grid-cols-1 gap-px bg-white/10 md:grid-cols-3 border border-white/10">
+                {items.map((item, i) => (
+                  <Reveal key={`${item.number}-${i}`} delay={i * 0.05}>
+                    <div className="group h-full bg-ink p-7 md:p-9 transition-colors duration-300 hover:bg-white/[0.03]">
+                      <span className="font-display text-3xl md:text-4xl font-bold tracking-tight text-lime">
+                        {item.number}
+                      </span>
+                      <h3 className="h-sub mt-5 text-white text-[17px] md:text-[19px] group-hover:text-lime transition-colors">
+                        {item.title}
+                      </h3>
+                      <p className="body-copy mt-3 text-[13.5px] md:text-[14.5px] leading-relaxed text-white/65">
+                        {item.description}
+                      </p>
+                    </div>
+                  </Reveal>
+                ))}
+              </div>
+            )}
+          </>
+        )}
       </div>
     </section>
   );

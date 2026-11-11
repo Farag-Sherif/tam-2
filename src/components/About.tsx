@@ -6,8 +6,9 @@ import { Reveal } from "./ui/Reveal";
  * 01 ABOUT TAM + 02 VISION & MISSION — verbatim from the company profile.
  */
 export function About() {
-  const { c, lang, dir } = useLang();
+  const { c, lang, dir, siteData } = useLang();
   const about = c.about;
+  const ctaLabel = siteData?.hero?.cta_primary || c.nav.cta;
 
   return (
     <section id="about" className="relative border-t border-white/10 py-20 md:py-28 bg-ink overflow-hidden">
@@ -128,7 +129,7 @@ export function About() {
                 href="#contact"
                 className="inline-flex shrink-0 items-center gap-2 border border-lime bg-lime px-6 py-3.5 text-[13px] font-bold text-ink hover:bg-lime/90 transition-all hover:shadow-[0_0_20px_rgba(223,255,0,0.4)]"
               >
-                <span>{c.hero.ctaPrimary}</span>
+                <span>{ctaLabel}</span>
                 <span>{dir === "rtl" ? "←" : "→"}</span>
               </a>
             </div>

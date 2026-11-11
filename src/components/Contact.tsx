@@ -40,7 +40,9 @@ export function validatePhone(raw: string): { valid: boolean; e164: string } {
 }
 
 export function Contact() {
-  const { c, dir, lang } = useLang();
+  const { c, dir, lang, siteData } = useLang();
+  const contactApi = siteData?.contact;
+  const footerApi = siteData?.footer;
   const [sent, setSent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -109,11 +111,13 @@ export function Contact() {
       <div className="relative mx-auto max-w-[1440px] px-5 py-20 md:px-8 md:py-28">
         <div className="grid gap-12 lg:grid-cols-[1fr_0.8fr] lg:gap-20">
           <div>
-            <span className="kicker text-white/55">{c.contact.kicker}</span>
+            <span className="kicker text-white/55">{contactApi?.kicker ?? ""}</span>
             <h2 className="mt-6 text-[clamp(1.9rem,4.6vw,3.6rem)] font-bold leading-[1.2] text-white font-ar">
-              {c.contact.title}
+              {contactApi?.title ?? ""}
             </h2>
-            <p className="body-copy mt-5 max-w-[48ch] text-white/65">{c.contact.lead}</p>
+            <p className="body-copy mt-5 max-w-[48ch] text-white/65">
+              {contactApi?.subtitle ?? ""}
+            </p>
 
             <form onSubmit={handleFormSubmit} className="mt-9 grid gap-5 sm:grid-cols-2">
               <input
@@ -165,7 +169,9 @@ export function Contact() {
               </label>
 
               <label className="block sm:col-span-2">
-                <span className="kicker text-[11px] text-white/50">{c.contact.details}</span>
+                <span className="kicker text-[11px] text-white/50">
+                  {contactApi?.label_details ?? c.contact.detailsPh}
+                </span>
                 <textarea
                   rows={3}
                   required
@@ -190,7 +196,7 @@ export function Contact() {
                 >
                   <span>
                     {submitting
-                      ? lang === "ar" ? "جاري الإرسال..." : "Sending..."
+                      ? c.contact.submitting
                       : sent ? c.contact.sent : c.contact.submit}
                   </span>
                   <span aria-hidden="true" className="font-display text-[11px]">
@@ -209,86 +215,84 @@ export function Contact() {
                 </button>
 
                 <span className={`text-[12px] ${sent ? "text-lime font-medium" : "text-white/40"}`}>
-                  {sent ? apiFeedback || c.contact.thanks : c.contact.reply}
+                  {sent ? apiFeedback || c.contact.thanks : contactApi?.disclaimer ?? ""}
                 </span>
               </div>
             </form>
           </div>
 
-          {/* Contact card — data exactly as the profile contact page */}
-          <div className="relative h-full border border-white/12 bg-white/[0.02] p-6 md:p-8">
-            <img src="/brand/logo-stacked.png" alt="TAM Booths & More" className="h-20 w-auto md:h-24" />
-            <div className="mt-7 h-px w-full bg-white/12" />
-            <div className="mt-6 space-y-4">
-              {c.contact.rows.map(([k, v]) => {
-                const isPhone = k.includes("Phone") || k.includes("الهاتف");
-                const isEmail = k.includes("Email") || k.includes("البريد");
-                const isWebsite = k.includes("Website") || k.includes("الموقع");
+          {/* Contact card */}
+          <div className="relative h-full border border-white/12 bg-white/[0.02] p-6 md:p-8 flex flex-col justify-between">
+            <div>
+              <img src="/brand/logo-stacked.png" alt="TAM Booths & More" className="h-20 w-auto md:h-24" />
+              <div className="mt-7 h-px w-full bg-white/12" />
+              <div className="mt-6 space-y-4">
+                {c.contact.rows.map(([k, v]) => {
+                  const isPhone = k.includes("Phone") || k.includes("الهاتف");
+                  const isEmailRow = k.includes("Email") || k.includes("البريد");
 
-                let valNode: React.ReactNode = v;
-                if (isPhone) {
-                  valNode = (
-                    <a
-                      href="https://wa.me/201011116346"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      dir="ltr"
-                      style={{ direction: "ltr", unicodeBidi: "isolate" }}
-                      className="inline-block font-mono text-[13.5px] text-lime hover:underline"
-                    >
-                      <bdi dir="ltr">{v}</bdi>
-                    </a>
+                  let valNode: React.ReactNode = v;
+                  if (isPhone) {
+                    valNode = (
+                      <a
+                        href="https://wa.me/201011116346"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        dir="ltr"
+                        style={{ direction: "ltr", unicodeBidi: "isolate" }}
+                        className="inline-block font-mono text-[13.5px] text-lime hover:underline"
+                      >
+                        <bdi dir="ltr">{v}</bdi>
+                      </a>
+                    );
+                  } else if (isEmailRow) {
+                    valNode = (
+                      <a
+                        href={`mailto:${v}`}
+                        dir="ltr"
+                        style={{ direction: "ltr", unicodeBidi: "isolate" }}
+                        className="inline-block text-[12.5px] text-lime hover:underline"
+                      >
+                        <bdi dir="ltr">{v}</bdi>
+                      </a>
+                    );
+                  }
+                  return (
+                    <div key={k} className="flex items-start justify-between gap-5 border-b border-white/5 pb-3">
+                      <span className="shrink-0 text-[11px] font-medium text-white/40">{k}</span>
+                      <span className="text-end text-[12.5px] leading-relaxed text-white/85">{valNode}</span>
+                    </div>
                   );
-                } else if (isEmail) {
-                  valNode = (
-                    <a
-                      href="mailto:inof@bluebrain-co.com"
-                      dir="ltr"
-                      style={{ direction: "ltr", unicodeBidi: "isolate" }}
-                      className="inline-block text-[12.5px] text-lime hover:underline"
-                    >
-                      <bdi dir="ltr">{v}</bdi>
-                    </a>
-                  );
-                } else if (isWebsite) {
-                  valNode = (
-                    <a
-                      href="https://www.bluebrain-co.com"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      dir="ltr"
-                      style={{ direction: "ltr", unicodeBidi: "isolate" }}
-                      className="inline-block text-[12.5px] text-lime hover:underline"
-                    >
-                      <bdi dir="ltr">{v}</bdi>
-                    </a>
-                  );
-                }
-                return (
-                  <div key={k} className="flex items-start justify-between gap-5 border-b border-white/5 pb-3">
-                    <span className="shrink-0 text-[11px] font-medium text-white/40">{k}</span>
-                    <span className="text-end text-[12.5px] leading-relaxed text-white/85">{valNode}</span>
-                  </div>
-                );
-              })}
+                })}
+              </div>
             </div>
 
-            <div className="mt-6">
-              <a
-                href="https://wa.me/201011116346"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex w-full items-center justify-center gap-3 border border-[#25D366]/40 bg-[#25D366]/10 px-4 py-3.5 text-xs font-bold text-white transition-all duration-300 hover:border-[#25D366] hover:bg-[#25D366] hover:text-ink"
-              >
-                <span>{lang === "ar" ? "محادثة فورية عبر واتساب" : "Chat on WhatsApp"}</span>
-                <span
-                  dir="ltr"
-                  style={{ direction: "ltr", unicodeBidi: "isolate" }}
-                  className="font-mono text-lime font-bold group-hover:text-ink transition-colors"
+            <div className="mt-7 flex items-center justify-between gap-4 border-t border-white/10 pt-5">
+              <span className="text-[11px] font-medium text-white/45">{c.contact.connectLabel}</span>
+              <div className="flex items-center gap-3">
+                <a
+                  href="https://wa.me/201011116346"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={c.contact.whatsappLabel}
+                  title={c.contact.whatsappLabel}
+                  className="flex h-11 w-11 items-center justify-center border border-[#25D366]/40 bg-[#25D366]/10 transition-all duration-300 hover:border-[#25D366] hover:bg-[#25D366]/25 hover:-translate-y-0.5"
                 >
-                  <bdi dir="ltr">(+2 010 1111 63 46)</bdi>
-                </span>
-              </a>
+                  <img src="/brand/whatsapp.svg" alt="" aria-hidden="true" className="h-5 w-5" />
+                </a>
+                <a
+                  href="https://www.facebook.com/tambooths"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={c.contact.facebookLabel}
+                  title={c.contact.facebookLabel}
+                  className="flex h-11 w-11 items-center justify-center border border-[#1877F2]/40 bg-[#1877F2]/10 text-[#1877F2] transition-all duration-300 hover:border-[#1877F2] hover:bg-[#1877F2]/25 hover:-translate-y-0.5"
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className="h-5 w-5">
+                    <path d="M22 12.06C22 6.5 17.52 2 12 2S2 6.5 2 12.06c0 5.02 3.66 9.18 8.44 9.94v-7.03H7.9v-2.91h2.54V9.84c0-2.52 1.49-3.91 3.78-3.91 1.1 0 2.24.2 2.24.2v2.47H15.2c-1.24 0-1.63.78-1.63 1.57v1.89h2.77l-.44 2.91h-2.33V22c4.78-.76 8.43-4.92 8.43-9.94Z" />
+                  </svg>
+                </a>
+              </div>
             </div>
           </div>
         </div>
@@ -300,13 +304,15 @@ export function Contact() {
           <div className="flex flex-wrap items-center gap-3">
             <img src="/brand/logo-alt.png" alt="TAM" className="h-4 w-auto opacity-75" />
             <span className="text-[11px] text-white/35">
-              © {new Date().getFullYear()} TAM. {c.contact.footerNote}
+              {footerApi?.copyright || `© ${new Date().getFullYear()} TAM.`}
             </span>
           </div>
           <div className="flex items-center gap-6">
-            <span className="font-display text-[9px] tracking-[0.2em] text-white/30">
-              {c.contact.version}
-            </span>
+            {footerApi?.guidelines && (
+              <span className="font-display text-[9px] tracking-[0.2em] text-white/30">
+                {footerApi.guidelines}
+              </span>
+            )}
             <a href="#top" className="text-[11px] text-white/55 transition-colors hover:text-lime">
               {c.contact.up}
             </a>

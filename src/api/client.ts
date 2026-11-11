@@ -19,13 +19,14 @@ import type {
 
 /**
  * Headless CMS API Base URL.
- * Automatically sanitizes any trailing slashes or /login paths.
+ * Automatically sanitizes trailing slashes, /api/v1 suffixes, or /login paths.
  * Default production: https://tam.bluebrain-co.com
  */
 export const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL || "https://tam.bluebrain-co.com"
 )
   .replace(/\/+$/, "")
+  .replace(/\/api\/v1\/?$/, "")
   .replace(/\/login\/?$/, "");
 
 /** Custom error thrown when POST /briefs rate limit (429) is hit */
@@ -48,7 +49,7 @@ const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache per API spec
 
 function getStorageEntry<T>(key: string): CacheEntry<T> | null {
   try {
-    const raw = sessionStorage.getItem(`tam_cache_${key}`);
+    const raw = sessionStorage.getItem(`tam_v1_cache_${key}`);
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -57,7 +58,7 @@ function getStorageEntry<T>(key: string): CacheEntry<T> | null {
 
 function setStorageEntry<T>(key: string, entry: CacheEntry<T>): void {
   try {
-    sessionStorage.setItem(`tam_cache_${key}`, JSON.stringify(entry));
+    sessionStorage.setItem(`tam_v1_cache_${key}`, JSON.stringify(entry));
   } catch {
     // sessionStorage not available or quota exceeded
   }
@@ -65,19 +66,32 @@ function setStorageEntry<T>(key: string, entry: CacheEntry<T>): void {
 
 /**
  * Fetch full site payload in one call (GET /api/v1/site?locale=en|ar).
- * Supports ETag revalidation with If-None-Match (cheap 304s) and 5-min caching.
+ * Supports 5-min caching and ETag revalidation with If-None-Match (304).
  */
-export async function getSite(locale: Lang = "en"): Promise<SitePayload | null> {
+export async function getSite(
+  locale: Lang = "en",
+  forceRefresh = false
+): Promise<SitePayload> {
   const cacheKey = `site_${locale}`;
   const cached =
     (memoryCache.get(cacheKey) as CacheEntry<SitePayload> | undefined) ||
     getStorageEntry<SitePayload>(cacheKey);
 
+  // Return fresh cached entry immediately within 5-minute TTL
+  if (
+    !forceRefresh &&
+    cached?.data &&
+    Date.now() - cached.timestamp < CACHE_TTL_MS
+  ) {
+    memoryCache.set(cacheKey, cached);
+    return cached.data;
+  }
+
   const headers: HeadersInit = {
     Accept: "application/json",
   };
 
-  if (cached?.etag) {
+  if (cached?.etag && !forceRefresh) {
     headers["If-None-Match"] = cached.etag;
   }
 
@@ -91,38 +105,37 @@ export async function getSite(locale: Lang = "en"): Promise<SitePayload | null> 
     if (res.status === 304 && cached?.data) {
       cached.timestamp = Date.now();
       memoryCache.set(cacheKey, cached);
+      setStorageEntry(cacheKey, cached);
       return cached.data;
     }
 
-    if (res.ok) {
-      const contentType = res.headers.get("content-type") || "";
-      if (!contentType.includes("application/json")) {
-        console.warn(
-          `[TAM API] Expected JSON but received content-type "${contentType}" from ${API_BASE_URL}`
-        );
-        return cached?.data || null;
-      }
-
-      const data: SitePayload = await res.json();
-      const etag = res.headers.get("etag") || res.headers.get("ETag") || undefined;
-      const entry: CacheEntry<SitePayload> = {
-        data,
-        etag,
-        timestamp: Date.now(),
-      };
-      memoryCache.set(cacheKey, entry);
-      setStorageEntry(cacheKey, entry);
-      return data;
+    if (!res.ok) {
+      if (cached?.data) return cached.data;
+      throw new Error(`API returned status ${res.status}`);
     }
 
-    console.warn(`[TAM API] /api/v1/site returned status ${res.status}`);
-  } catch {
-    // Offline / connection refused fallback — fail gracefully
-    console.info(`[TAM API] Connection to ${API_BASE_URL} unavailable. Using fallback.`);
-  }
+    const contentType = res.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+      if (cached?.data) return cached.data;
+      throw new Error(`Expected JSON response from ${API_BASE_URL}, got "${contentType}"`);
+    }
 
-  // Return cached data if available, else null to trigger template fallback
-  return cached?.data || null;
+    const data: SitePayload = await res.json();
+    const etag = res.headers.get("etag") || res.headers.get("ETag") || undefined;
+    const entry: CacheEntry<SitePayload> = {
+      data,
+      etag,
+      timestamp: Date.now(),
+    };
+    memoryCache.set(cacheKey, entry);
+    setStorageEntry(cacheKey, entry);
+    return data;
+  } catch (err) {
+    if (cached?.data) {
+      return cached.data;
+    }
+    throw err instanceof Error ? err : new Error("Failed to load site data from API");
+  }
 }
 
 /**
@@ -153,7 +166,6 @@ async function fetchCollection<T>(endpoint: string, locale: Lang): Promise<T[]> 
       return list;
     }
   } catch {
-    // Return cached if exists
     if (cached) return cached.data;
   }
 
@@ -246,81 +258,56 @@ export const getClientById = (id: string | number, locale: Lang) =>
 export async function submitBrief(payload: BriefSubmission): Promise<BriefResponse> {
   const url = `${API_BASE_URL}/api/v1/briefs`;
 
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
-        name: payload.name,
-        contact: payload.contact,
-        details: payload.details,
-        locale: payload.locale || "en",
-        website: payload.website || "", // honeypot
-        ...(payload.specification ? { specification: payload.specification } : {}),
-      }),
-    });
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      name: payload.name,
+      contact: payload.contact,
+      details: payload.details,
+      locale: payload.locale || "en",
+      website: payload.website || "", // honeypot
+      ...(payload.specification ? { specification: payload.specification } : {}),
+    }),
+  });
 
-    if (res.status === 429) {
-      throw new RateLimitError(
-        payload.locale === "ar"
-          ? "تم إرسال عدة طلبات مؤخراً. يرجى الانتظار دقيقة قبل المحاولة مجدداً."
-          : "Too many requests. Please wait a moment before trying again."
-      );
-    }
-
-    if (!res.ok) {
-      let message = "Submission failed";
-      try {
-        const errJson = await res.json();
-        message = errJson.message || errJson.error || message;
-      } catch {
-        // use default
-      }
-      throw new Error(message);
-    }
-
-    const contentType = res.headers.get("content-type") || "";
-    if (!contentType.includes("application/json")) {
-      return {
-        ok: true,
-        id: Date.now(),
-        message:
-          payload.locale === "ar"
-            ? "تم استلام طلبك بنجاح ✓"
-            : "Project brief received successfully ✓",
-      };
-    }
-
-    const data: BriefResponse = await res.json();
-    return data;
-  } catch (err: unknown) {
-    if (err instanceof RateLimitError) {
-      throw err;
-    }
-
-    // Check if network failed or server offline / unreachable
-    const isNetworkError =
-      err instanceof TypeError &&
-      (err.message.includes("fetch") || err.message.includes("NetworkError"));
-
-    if (isNetworkError) {
-      console.warn(
-        `[TAM API] Backend at ${url} is unreachable. Simulating successful local delivery.`
-      );
-      // Return simulated success so client UX remains functional
-      return {
-        ok: true,
-        id: Date.now(),
-        message:
-          payload.locale === "ar"
-            ? "تم استلام طلبك بنجاح ✓ (وضع المحاكاة المحلي)"
-            : "Project brief received successfully ✓ (Local simulation mode)",
-      };
-    }
-
-    throw err;
+  if (res.status === 429) {
+    throw new RateLimitError(
+      payload.locale === "ar"
+        ? "تم إرسال عدة طلبات مؤخراً. يرجى الانتظار دقيقة قبل المحاولة مجدداً."
+        : "Too many requests. Please wait a moment before trying again."
+    );
   }
+
+  if (!res.ok) {
+    let message =
+      payload.locale === "ar"
+        ? "تعذر إرسال الطلب. يرجى التحقق من البيانات والمحاولة مرة أخرى."
+        : "Submission failed. Please check your details and try again.";
+    try {
+      const errJson = await res.json();
+      message = errJson.message || errJson.error || message;
+    } catch {
+      // use default
+    }
+    throw new Error(message);
+  }
+
+  const contentType = res.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    return {
+      ok: true,
+      id: Date.now(),
+      message:
+        payload.locale === "ar"
+          ? "تم استلام طلبك بنجاح ✓"
+          : "Project brief received successfully ✓",
+    };
+  }
+
+  const data: BriefResponse = await res.json();
+  return data;
 }

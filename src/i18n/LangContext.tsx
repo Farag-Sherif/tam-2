@@ -8,6 +8,8 @@ import {
   type ReactNode,
 } from "react";
 import { copy, type Lang } from "./copy";
+import { getSite } from "../api/client";
+import type { SitePayload } from "../api/types";
 
 type CopyShape = (typeof copy)["ar"];
 
@@ -17,13 +19,15 @@ interface LangContextValue {
   c: CopyShape;
   setLang: (l: Lang) => void;
   toggle: () => void;
+  siteData: SitePayload | null;
+  apiStatus: "loading" | "live" | "error";
+  apiError: string | null;
+  refreshSite: () => Promise<void>;
 }
 
 const LangCtx = createContext<LangContextValue | null>(null);
 
 function getInitialLang(): Lang {
-  // index.html already applied the saved language before mount;
-  // read the same source of truth here.
   try {
     const saved = localStorage.getItem("tam_lang");
     if (saved === "ar" || saved === "en") return saved;
@@ -35,6 +39,9 @@ function getInitialLang(): Lang {
 
 export function LangProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<Lang>(getInitialLang);
+  const [siteData, setSiteData] = useState<SitePayload | null>(null);
+  const [apiStatus, setApiStatus] = useState<"loading" | "live" | "error">("loading");
+  const [apiError, setApiError] = useState<string | null>(null);
   const dir = lang === "ar" ? "rtl" : "ltr";
 
   const setLang = useCallback((l: Lang) => {
@@ -51,6 +58,43 @@ export function LangProvider({ children }: { children: ReactNode }) {
     [lang, setLang]
   );
 
+  const fetchSiteData = useCallback(async (targetLang: Lang, force = false) => {
+    setApiStatus("loading");
+    setApiError(null);
+    try {
+      const payload = await getSite(targetLang, force);
+      setSiteData(payload);
+      setApiStatus("live");
+    } catch (err) {
+      setApiStatus("error");
+      setApiError(err instanceof Error ? err.message : "Failed to load content");
+    }
+  }, []);
+
+  useEffect(() => {
+    let ignore = false;
+    setApiStatus("loading");
+    setApiError(null);
+
+    getSite(lang)
+      .then((payload) => {
+        if (!ignore) {
+          setSiteData(payload);
+          setApiStatus("live");
+        }
+      })
+      .catch((err) => {
+        if (!ignore) {
+          setApiStatus("error");
+          setApiError(err instanceof Error ? err.message : "Failed to load content");
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [lang]);
+
   useEffect(() => {
     const root = document.documentElement;
     root.lang = lang;
@@ -62,9 +106,21 @@ export function LangProvider({ children }: { children: ReactNode }) {
 
   const c = useMemo(() => copy[lang], [lang]);
 
+  const refreshSite = useCallback(() => fetchSiteData(lang, true), [fetchSiteData, lang]);
+
   const value = useMemo<LangContextValue>(
-    () => ({ lang, dir, c, setLang, toggle }),
-    [lang, dir, c, setLang, toggle]
+    () => ({
+      lang,
+      dir,
+      c,
+      setLang,
+      toggle,
+      siteData,
+      apiStatus,
+      apiError,
+      refreshSite,
+    }),
+    [lang, dir, c, setLang, toggle, siteData, apiStatus, apiError, refreshSite]
   );
 
   return <LangCtx.Provider value={value}>{children}</LangCtx.Provider>;
