@@ -45,45 +45,41 @@ interface CacheEntry<T> {
 }
 
 const memoryCache = new Map<string, CacheEntry<unknown>>();
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache per API spec
+// In-memory deduplication window (10 seconds) to avoid duplicate requests during same render
+const CACHE_TTL_MS = 10 * 1000;
 
-function getStorageEntry<T>(key: string): CacheEntry<T> | null {
-  try {
-    const raw = sessionStorage.getItem(`tam_v1_cache_${key}`);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
+// Purge any stale sessionStorage cache from previous builds
+try {
+  if (typeof sessionStorage !== "undefined") {
+    for (let i = sessionStorage.length - 1; i >= 0; i--) {
+      const k = sessionStorage.key(i);
+      if (k && k.startsWith("tam_v1_cache_")) {
+        sessionStorage.removeItem(k);
+      }
+    }
   }
-}
-
-function setStorageEntry<T>(key: string, entry: CacheEntry<T>): void {
-  try {
-    sessionStorage.setItem(`tam_v1_cache_${key}`, JSON.stringify(entry));
-  } catch {
-    // sessionStorage not available or quota exceeded
-  }
+} catch {
+  // Ignore in environments without sessionStorage
 }
 
 /**
  * Fetch full site payload in one call (GET /api/v1/site?locale=en|ar).
- * Supports 5-min caching and ETag revalidation with If-None-Match (304).
+ * Validates with origin server via conditional requests (ETag/no-cache)
+ * so dashboard changes reflect immediately on page reload.
  */
 export async function getSite(
   locale: Lang = "en",
   forceRefresh = false
 ): Promise<SitePayload> {
   const cacheKey = `site_${locale}`;
-  const cached =
-    (memoryCache.get(cacheKey) as CacheEntry<SitePayload> | undefined) ||
-    getStorageEntry<SitePayload>(cacheKey);
+  const cached = memoryCache.get(cacheKey) as CacheEntry<SitePayload> | undefined;
 
-  // Return fresh cached entry immediately within 5-minute TTL
+  // Return recent in-memory entry during rapid component re-renders (within 10s) unless forced
   if (
     !forceRefresh &&
     cached?.data &&
     Date.now() - cached.timestamp < CACHE_TTL_MS
   ) {
-    memoryCache.set(cacheKey, cached);
     return cached.data;
   }
 
@@ -99,13 +95,13 @@ export async function getSite(
     const res = await fetch(`${API_BASE_URL}/api/v1/site?locale=${locale}`, {
       method: "GET",
       headers,
+      cache: "no-cache",
     });
 
     // 304 Not Modified — server validated that cached content is still fresh
     if (res.status === 304 && cached?.data) {
       cached.timestamp = Date.now();
       memoryCache.set(cacheKey, cached);
-      setStorageEntry(cacheKey, cached);
       return cached.data;
     }
 
@@ -128,7 +124,6 @@ export async function getSite(
       timestamp: Date.now(),
     };
     memoryCache.set(cacheKey, entry);
-    setStorageEntry(cacheKey, entry);
     return data;
   } catch (err) {
     if (cached?.data) {

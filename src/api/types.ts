@@ -210,6 +210,29 @@ export interface FooterSection {
   guidelines?: string;
 }
 
+/** Brand & contact identity payload (from dashboard settings) */
+export interface SiteSocials {
+  facebook?: string | null;
+  instagram?: string | null;
+  linkedin?: string | null;
+  youtube?: string | null;
+  tiktok?: string | null;
+  x?: string | null;
+  twitter?: string | null;
+  [key: string]: string | null | undefined;
+}
+
+export interface SiteIdentity {
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  whatsapp?: string | null;
+  address?: string | null;
+  logo?: string | null;
+  favicon?: string | null;
+  socials?: SiteSocials | null;
+}
+
 /** Full Site Payload returned by GET /api/v1/site?locale={{locale}} */
 export interface SitePayload {
   locale: Lang;
@@ -225,6 +248,7 @@ export interface SitePayload {
   brand?: BrandSection;
   contact?: ContactSection;
   footer?: FooterSection;
+  identity?: SiteIdentity;
 }
 
 /** Booth specification output submitted inside project brief */
